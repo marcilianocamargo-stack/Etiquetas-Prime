@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Etiquetas Prime Ondulados</title>
+ <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -332,6 +333,19 @@ function gerarEBaixar(){
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function mostrarMsg(txt,ok){const el=document.getElementById('msgResult');el.textContent=txt;el.className='msg '+(ok?'ok':'err');el.style.display='block';}
+</script>
+ <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/App-etiquetas-Prime/sw.js')
+        .then(registration => {
+          console.log('Service worker registered:', registration);
+        })
+        .catch(error => {
+          console.log('Service worker registration failed:', error);
+        });
+    });
+  }
 </script>
 </body>
 </html>
