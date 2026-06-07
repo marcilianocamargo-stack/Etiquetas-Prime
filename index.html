@@ -3,8 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a56a0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Etiquetas Prime">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Etiquetas Prime Ondulados</title>
- <link rel="manifest" href="manifest.json">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -18,8 +23,11 @@
   .card{background:white;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
   .step{font-weight:700;color:#1a56a0;font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
   input[type=file]{display:block;width:100%;padding:8px 0;font-size:13px;color:#444;cursor:pointer}
-  select,input[type=number]{width:100%;padding:9px 11px;border-radius:6px;border:1.5px solid #c5d6ed;font-size:15px;color:#222;background:#f7faff;outline:none}
+  select,input[type=number],input[type=text]{width:100%;padding:9px 11px;border-radius:6px;border:1.5px solid #c5d6ed;font-size:15px;color:#222;background:#f7faff;outline:none}
   select:focus,input:focus{border-color:#1a56a0}
+  .busca-row{display:flex;gap:8px;margin-bottom:8px}
+  .busca-row input{flex:1}
+  .busca-row button{padding:9px 14px;border-radius:6px;border:none;background:#1a56a0;color:white;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   label.lbl{display:block;font-size:10px;color:#666;font-weight:700;margin-bottom:3px;text-transform:uppercase}
   input.big{font-size:21px;font-weight:700;text-align:center}
@@ -58,7 +66,11 @@
 
   <div class="card" id="cardOf" style="display:none">
     <div class="step">2 · Selecionar OF</div>
-    <select id="selOf"></select>
+    <div class="busca-row">
+      <input type="text" id="buscaOf" placeholder="Digite o nº da OF..." oninput="filtrarOf()" inputmode="numeric">
+      <button onclick="limparBusca()">✕</button>
+    </div>
+    <select id="selOf" size="1"></select>
     <div class="preview-box" id="previewDados"></div>
   </div>
 
@@ -167,9 +179,7 @@ function carregarAba(){
 
 function popularOrdens(lista,aba){
   ordens=lista;
-  const sel=document.getElementById('selOf');
-  sel.innerHTML='';
-  ordens.forEach(o=>{const opt=document.createElement('option');opt.value=o.of;opt.textContent='OF '+o.of+(o.cliente?' · '+o.cliente:'');sel.appendChild(opt);});
+  preencherSelect(ordens);
   document.getElementById('msgXlsx').textContent='✓ '+ordens.length+' OF(s) carregada(s) — aba: '+aba;
   document.getElementById('msgXlsx').style.display='block';
   document.getElementById('cardAba').style.display='none';
@@ -178,6 +188,31 @@ function popularOrdens(lista,aba){
   document.getElementById('btnImprimir').style.display='block';
   document.getElementById('btnBaixar').style.display='block';
   atualizarPreview();
+}
+
+function preencherSelect(lista){
+  const sel=document.getElementById('selOf');
+  const valorAtual=sel.value;
+  sel.innerHTML='';
+  lista.forEach(o=>{const opt=document.createElement('option');opt.value=o.of;opt.textContent='OF '+o.of+(o.cliente?' · '+o.cliente:'');sel.appendChild(opt);});
+  // tentar manter seleção
+  if(valorAtual && lista.find(o=>o.of===valorAtual)) sel.value=valorAtual;
+  atualizarPreview();
+}
+
+function filtrarOf(){
+  const busca=document.getElementById('buscaOf').value.trim();
+  if(!busca){preencherSelect(ordens);return;}
+  const filtradas=ordens.filter(o=>o.of.includes(busca)||(o.cliente&&o.cliente.toLowerCase().includes(busca.toLowerCase())));
+  preencherSelect(filtradas);
+  // se só uma, selecionar automaticamente
+  if(filtradas.length===1) document.getElementById('selOf').value=filtradas[0].of;
+  atualizarPreview();
+}
+
+function limparBusca(){
+  document.getElementById('buscaOf').value='';
+  preencherSelect(ordens);
 }
 
 document.getElementById('selOf').addEventListener('change', atualizarPreview);
@@ -194,51 +229,35 @@ function atualizarPreview(){
   prev.innerHTML=html; prev.style.display=html?'block':'none';
 }
 
-// ---- Geração do PDF com tamanhos fiéis ao modelo manual ----
 function gerarPDF(dados) {
   const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
   const PW=210, left=14, topoFita=40;
-
-  // Logo
   const logoW=PW-28, logoH=logoW*0.364;
   doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',left,topoFita,logoW,logoH);
-
   let y = topoFita + logoH + 9;
+  const LBL=11, VAL=20, VALG=26, VALN=24, VALR=14;
 
-  // Tamanhos (convertidos de half-points para pt, depois pt→mm: 1pt=0.3528mm)
-  // sz=28 → 14pt → ~4.94mm  |  sz=40 → 20pt → ~7.06mm  |  sz=52 → 26pt → ~9.17mm  |  sz=48 → 24pt → ~8.47mm
-  const LBL  = 11;   // rótulos (mm)
-  const VAL  = 20;   // valores padrão (pt para jsPDF que usa pt internamente)
-  const VALG = 26;   // quantidade de palete
-  const VALN = 24;   // número do palete
-  const VALR = 14;   // referência
-
-  // Função para calcular tamanho de fonte adaptativo para o cliente
   function fonteSzCliente(nome) {
-    // jsPDF: medir largura em pt com fonte 20pt
     doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-    const wDisp = (PW - left - 14 - 21) * (72/25.4); // área disponível em pt
-    const wNome = doc.getTextWidth(nome);
-    if (wNome <= wDisp) return VAL;
-    if (wNome <= wDisp * (VAL/18)) return 18;
-    if (wNome <= wDisp * (VAL/16)) return 16;
+    const wDisp=(PW-left-14-21)*(72/25.4);
+    const wNome=doc.getTextWidth(nome);
+    if(wNome<=wDisp) return VAL;
+    if(wNome<=wDisp*(VAL/18)) return 18;
+    if(wNome<=wDisp*(VAL/16)) return 16;
     return 14;
   }
 
-  // IDENTIFICAÇÃO DO PRODUTO
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('IDENTIFICAÇÃO DO PRODUTO', PW/2, y, {align:'center'});
   y += 8;
 
-  // CLIENTE
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('CLIENTE:', left, y);
-  const szCli = fonteSzCliente(dados.cliente);
+  const szCli=fonteSzCliente(dados.cliente);
   doc.setFont('helvetica','bold'); doc.setFontSize(szCli);
   doc.text(dados.cliente, left+21, y);
-  y += szCli > 18 ? 12 : 10;
+  y += szCli>18?12:10;
 
-  // OF + PAPELÃO
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('OF:', left, y);
   doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
@@ -249,38 +268,33 @@ function gerarPDF(dados) {
   doc.text(dados.papelao, left+76, y);
   y += 12;
 
-  // QUANTIDADE PEDIDO
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('QUANTIDADE PEDIDO', left, y);
   doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-  const qtdW = doc.getTextWidth(dados.qtdePedido);
+  const qtdW=doc.getTextWidth(dados.qtdePedido);
   doc.text(dados.qtdePedido, left+54, y);
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('CHAPAS', left+54+qtdW+2, y);
   y += 12;
 
-  // MEDIDA
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('MEDIDA:', left, y);
   doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
   doc.text(dados.medida, left+21, y);
   y += 12;
 
-  // REFERÊNCIA
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('REFERÊNCIA:', left, y);
   doc.setFont('helvetica','bold'); doc.setFontSize(VALR);
   doc.text(dados.referencia, left+30, y);
   y += 11;
 
-  // QUANTIDADE DE PALETE
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('QUANTIDADE DE PALETE', left, y);
   doc.setFont('helvetica','bold'); doc.setFontSize(VALG);
   doc.text(dados.qtdePalete, left+60, y);
   y += 13;
 
-  // PALETE Nº
   doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
   doc.text('PALETE Nº', left, y);
   doc.setFont('helvetica','bold'); doc.setFontSize(VALN);
@@ -333,19 +347,12 @@ function gerarEBaixar(){
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function mostrarMsg(txt,ok){const el=document.getElementById('msgResult');el.textContent=txt;el.className='msg '+(ok?'ok':'err');el.style.display='block';}
-</script>
- <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/App-etiquetas-Prime/sw.js')
-        .then(registration => {
-          console.log('Service worker registered:', registration);
-        })
-        .catch(error => {
-          console.log('Service worker registration failed:', error);
-        });
-    });
-  }
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
