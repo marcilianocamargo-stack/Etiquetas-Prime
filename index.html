@@ -232,73 +232,75 @@ function atualizarPreview(){
 function gerarPDF(dados) {
   const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
   const PW=210, left=14, topoFita=40;
-  const logoW=PW-28, logoH=logoW*0.364;
-  doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',left,topoFita,logoW,logoH);
-  let y = topoFita + logoH + 9;
-  const LBL=11, VAL=20, VALG=26, VALN=24, VALR=14;
+  const W=PW-28; // 182mm
+  const HC=W/2;  // 91mm por coluna
 
-  function fonteSzCliente(nome) {
-    doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-    const wDisp=(PW-left-14-21)*(72/25.4);
-    const wNome=doc.getTextWidth(nome);
-    if(wNome<=wDisp) return VAL;
-    if(wNome<=wDisp*(VAL/18)) return 18;
-    if(wNome<=wDisp*(VAL/16)) return 16;
-    return 14;
+  // Logo
+  const logoW=W, logoH=logoW*0.364;
+  doc.addImage('data:image/jpeg;base64,'+LOGO_B64,'JPEG',left,topoFita,logoW,logoH);
+  let y = topoFita + logoH + 5;
+
+  const BLUE=[14,114,188];
+
+  // Seção CLIENTE (fundo azul)
+  doc.setFillColor(...BLUE);
+  doc.rect(left, y, W, 20, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('CLIENTE', left+3, y+5);
+  // Nome do cliente com fonte adaptável
+  let szCli=22;
+  doc.setFontSize(szCli);
+  while(doc.getTextWidth(dados.cliente) > W-6 && szCli > 11) { szCli--; doc.setFontSize(szCli); }
+  doc.text(dados.cliente, left+3, y+16);
+  y += 24;
+
+  // Seção IDENTIFICAÇÃO DO PRODUTO (fundo azul)
+  doc.setFillColor(...BLUE);
+  doc.rect(left, y, W, 16, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(9);
+  doc.text('IDENTIFICAÇÃO DO PRODUTO', left+3, y+5);
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('PAPELÃO:  ' + (dados.papelao||''), left+3, y+13);
+  y += 20;
+
+  // Grade com bordas
+  doc.setTextColor(0,0,0);
+  doc.setDrawColor(0,0,0);
+  doc.setLineWidth(0.4);
+
+  function celula(x, cy, w, h, label, valor, szVal) {
+    doc.rect(x, cy, w, h);
+    doc.setFont('helvetica','bold'); doc.setFontSize(8);
+    doc.text(label, x+2, cy+5);
+    if(valor) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(szVal||15);
+      doc.text(String(valor), x+2, cy+h-3);
+    }
   }
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('IDENTIFICAÇÃO DO PRODUTO', PW/2, y, {align:'center'});
-  y += 8;
+  const hoje = new Date();
+  const dataFab = hoje.toLocaleDateString('pt-BR');
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('CLIENTE:', left, y);
-  const szCli=fonteSzCliente(dados.cliente);
-  doc.setFont('helvetica','bold'); doc.setFontSize(szCli);
-  doc.text(dados.cliente, left+21, y);
-  y += szCli>18?12:10;
+  // Linha 1: OF | OC
+  celula(left,    y, HC, 14, 'ORDEM DE FABRICAÇÃO (OF)', dados.of, 15);
+  celula(left+HC, y, HC, 14, 'ORDEM DE COMPRA (OC)', dados.oc||'', 15);
+  y += 14;
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('OF:', left, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-  doc.text(dados.of, left+10, y);
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('PAPELÃO:', left+52, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-  doc.text(dados.papelao, left+76, y);
-  y += 12;
+  // Linha 2: MEDIDAS | REFERÊNCIA
+  celula(left,    y, HC, 14, 'MEDIDAS (LARGURA X COMPRIMENTO)', dados.medida, 14);
+  celula(left+HC, y, HC, 14, 'REFERÊNCIA', dados.referencia, 14);
+  y += 14;
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('QUANTIDADE PEDIDO', left, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-  const qtdW=doc.getTextWidth(dados.qtdePedido);
-  doc.text(dados.qtdePedido, left+54, y);
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('CHAPAS', left+54+qtdW+2, y);
-  y += 12;
+  // Linha 3: DATA DE FABRICAÇÃO | QUANT. PEDIDO
+  celula(left,    y, HC, 16, 'DATA DE FABRICAÇÃO', dataFab, 16);
+  celula(left+HC, y, HC, 16, 'QUANT. PEDIDO', dados.qtdePedido, 16);
+  y += 16;
 
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('MEDIDA:', left, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VAL);
-  doc.text(dados.medida, left+21, y);
-  y += 12;
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('REFERÊNCIA:', left, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VALR);
-  doc.text(dados.referencia, left+30, y);
-  y += 11;
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('QUANTIDADE DE PALETE', left, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VALG);
-  doc.text(dados.qtdePalete, left+60, y);
-  y += 13;
-
-  doc.setFont('helvetica','normal'); doc.setFontSize(LBL);
-  doc.text('PALETE Nº', left, y);
-  doc.setFont('helvetica','bold'); doc.setFontSize(VALN);
-  doc.text(dados.numPalete, left+24, y);
+  // Linha 4: PALETE Nº | Quant. PALETE
+  celula(left,    y, HC, 22, 'PALETE Nº', dados.numPalete||'', 20);
+  celula(left+HC, y, HC, 22, 'Quant. PALETE', dados.qtdePalete||'', 20);
 
   return doc;
 }
@@ -308,18 +310,25 @@ function getDados(){
   const o=ordens.find(x=>x.of===of); if(!o) return null;
   const numRaw=document.getElementById('numPalete').value;
   const qtdePalete=document.getElementById('qtdePalete').value;
-  if(!numRaw||!qtdePalete) return null;
-  return {...o, qtdePalete, numPalete:String(parseInt(numRaw)).padStart(2,'0'), numRaw:parseInt(numRaw)};
+  const numPalete=numRaw?String(parseInt(numRaw)).padStart(2,'0'):'';
+  return {...o, qtdePalete, numPalete, numRaw:parseInt(numRaw)||0};
 }
 
 function avancarPalete(numRaw){
-  document.getElementById('numPalete').value=numRaw+1;
+  if(numRaw) document.getElementById('numPalete').value=numRaw+1;
   document.getElementById('qtdePalete').value='';
 }
 
 function gerarEImprimir(){
   const dados=getDados();
-  if(!dados){mostrarMsg('Preencha o número do palete e a quantidade de chapas.',false);return;}
+  if(!dados){mostrarMsg('Selecione uma OF antes de imprimir.',false);return;}
+  const vazios=[];
+  if(!dados.numPalete) vazios.push('Nº do Palete');
+  if(!dados.qtdePalete) vazios.push('Quantidade de Chapas');
+  if(vazios.length>0){
+    const ok=confirm('⚠️ '+vazios.join(' e ')+' está'+(vazios.length>1?'o':'')+' em branco.\nDeseja imprimir somente com as informações do cliente?');
+    if(!ok) return;
+  }
   const doc=gerarPDF(dados);
   const fileName='etiqueta_OF'+dados.of+'_palete'+dados.numPalete+'.pdf';
   const blob=doc.output('blob');
@@ -338,7 +347,14 @@ function gerarEImprimir(){
 
 function gerarEBaixar(){
   const dados=getDados();
-  if(!dados){mostrarMsg('Preencha o número do palete e a quantidade de chapas.',false);return;}
+  if(!dados){mostrarMsg('Selecione uma OF antes de baixar.',false);return;}
+  const vazios=[];
+  if(!dados.numPalete) vazios.push('Nº do Palete');
+  if(!dados.qtdePalete) vazios.push('Quantidade de Chapas');
+  if(vazios.length>0){
+    const ok=confirm('⚠️ '+vazios.join(' e ')+' está'+(vazios.length>1?'o':'')+' em branco.\nDeseja imprimir somente com as informações do cliente?');
+    if(!ok) return;
+  }
   const doc=gerarPDF(dados);
   doc.save('etiqueta_OF'+dados.of+'_palete'+dados.numPalete+'.pdf');
   mostrarMsg('✓ PDF baixado — OF '+dados.of+' · Palete '+dados.numPalete,true);
