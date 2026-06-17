@@ -59,9 +59,9 @@
   </div>
 
   <div class="card" id="cardAba" style="display:none">
-    <div class="step">1b · Selecionar aba</div>
+    <div class="step">1b · Selecionar aba (data)</div>
     <select id="selAba"></select>
-    <button onclick="carregarAba()" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:#1a56a0;color:white;font-weight:700;font-size:14px;cursor:pointer">Carregar aba</button>
+    <button onclick="carregarAba()" style="margin-top:8px;width:100%;padding:9px;border-radius:6px;border:none;background:#1a56a0;color:white;font-weight:700;font-size:14px;cursor:pointer">Carregar OFs desta aba</button>
   </div>
 
   <div class="card" id="cardOf" style="display:none">
@@ -160,9 +160,10 @@ document.getElementById('fileXlsx').addEventListener('change', function(e) {
       const sel=document.getElementById('selAba');
       sel.innerHTML='';
       abas.forEach(a=>{const o=document.createElement('option');o.value=o.textContent=a;sel.appendChild(o);});
+      document.getElementById('cardAba').style.display='block';
       let ok=false;
       for(const aba of abas){const r=processarAba(workbook.Sheets[aba]);if(r&&r.length>0){sel.value=aba;popularOrdens(r,aba);ok=true;break;}}
-      if(!ok){document.getElementById('cardAba').style.display='block';document.getElementById('msgXlsx').textContent='Selecione a aba abaixo.';document.getElementById('msgXlsx').style.display='block';}
+      if(!ok){document.getElementById('msgXlsx').textContent='Selecione a aba abaixo.';document.getElementById('msgXlsx').style.display='block';}
     } catch(err){alert('Erro: '+err.message);}
   };
   reader.readAsArrayBuffer(file);
@@ -180,9 +181,8 @@ function carregarAba(){
 function popularOrdens(lista,aba){
   ordens=lista;
   preencherSelect(ordens);
-  document.getElementById('msgXlsx').textContent='✓ '+ordens.length+' OF(s) carregada(s) — aba: '+aba;
+  document.getElementById('msgXlsx').textContent='✓ '+ordens.length+' OF(s) — aba: '+aba;
   document.getElementById('msgXlsx').style.display='block';
-  document.getElementById('cardAba').style.display='none';
   document.getElementById('cardOf').style.display='block';
   document.getElementById('cardPalete').style.display='block';
   document.getElementById('btnImprimir').style.display='block';
