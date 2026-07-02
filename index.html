@@ -52,7 +52,12 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="cardAuto" style="display:none">
+    <div id="autoStatus" style="font-size:13px;font-weight:600"></div>
+    <a href="#" id="linkManual" onclick="mostrarManual();return false;" style="display:none;margin-top:8px;font-size:12px;color:#1a56a0">Programação errada? Carregar Excel manualmente</a>
+  </div>
+
+  <div class="card" id="cardArquivo" style="display:none">
     <div class="step">1 · Carregar programação (xlsx)</div>
     <input type="file" id="fileXlsx" accept=".xlsx,.xls">
     <div id="msgXlsx" style="margin-top:7px;font-size:12px;color:#2e7d32;display:none"></div>
@@ -105,69 +110,136 @@ function numFmt(v) {
   if (isNaN(n)) return String(v);
   return n.toFixed(3).replace('.', ',');
 }
-function findCol(headers, keys) {
-  return headers.find(h => h && keys.some(k => h.toLowerCase().includes(k))) || '';
+function norm(s){return String(s==null?'':s).trim().toLowerCase();}
+// OF = número inteiro de 6 ou 7 dígitos (ex.: 261342). Distingue da data serial do Excel (5 díg. ~46000).
+function ehOF(v){return /^\d{6,7}$/.test(String(v==null?'':v).trim());}
+function acharCol(headers, keys){
+  for(let c=0;c<headers.length;c++){const h=norm(headers[c]);if(h&&keys.some(k=>h.includes(k)))return c;}
+  return -1;
 }
-function detectarCabecalho(ws) {
-  const range = XLSX.utils.decode_range(ws['!ref']||'A1:Z10');
-  for (let r=range.s.r; r<=Math.min(range.e.r,5); r++) {
-    const row=[];
-    for (let c=range.s.c; c<=range.e.c; c++) {
-      const cell=ws[XLSX.utils.encode_cell({r,c})];
-      row.push(cell?String(cell.v||''):'');
-    }
-    if (row.some(h=>h.toUpperCase()==='OF')) return r;
+function acharColExata(headers, keys){
+  for(let c=0;c<headers.length;c++){const h=norm(headers[c]);if(h&&keys.indexOf(h)>=0)return c;}
+  return -1;
+}
+function detectarLinhaCabecalho(matrix){
+  const kws=['cliente','of','p.o','qtde','pedido','largura','comprimento','sliter','vincad','data'];
+  let best=-1,bestHits=1,lim=Math.min(matrix.length,20);
+  for(let r=0;r<lim;r++){
+    const row=matrix[r]||[];let hits=0;
+    for(const cell of row){const h=norm(cell);if(h&&kws.some(k=>h.includes(k)))hits++;}
+    if(hits>bestHits){bestHits=hits;best=r;}
   }
-  return 0;
+  return best;
 }
-function processarAba(ws) {
-  const hr=detectarCabecalho(ws);
-  const range=XLSX.utils.decode_range(ws['!ref']||'A1');
-  const nr=Object.assign({},range,{s:{r:hr,c:range.s.c}});
-  const wsC=Object.assign({},ws,{'!ref':XLSX.utils.encode_range(nr)});
-  const data=XLSX.utils.sheet_to_json(wsC,{defval:'',raw:true});
-  if (!data.length) return [];
-  const headers=Object.keys(data[0]);
-  const colOf=findCol(headers,['of']);
-  const colCli=findCol(headers,['cliente','client']);
-  const colPap=findCol(headers,['p.o.','p.o','papelao','papelão','papel']);
-  const colQtd=findCol(headers,['qtde pedido','quantidade pedido']);
-  const colLarg=findCol(headers,['largura']);
-  const colComp=findCol(headers,['comprimento']);
-  const colRef=findCol(headers,['sliter','slitter','vincad','referencia','referência']);
-  if (!colOf) return null;
-  return data.filter(r=>r[colOf]&&!isNaN(parseFloat(r[colOf]))&&parseFloat(r[colOf])>100000).map(r=>{
+// A coluna da OF é achada pelo CONTEÚDO (a coluna com mais números de OF), não pelo rótulo
+// do cabeçalho — porque na prática o rótulo varia: às vezes a OF fica na coluna "Data Prod".
+function acharColunaOF(matrix, hr){
+  const counts={};
+  for(let r=hr+1;r<matrix.length;r++){
+    const row=matrix[r]||[];
+    for(let c=0;c<row.length;c++){if(ehOF(row[c]))counts[c]=(counts[c]||0)+1;}
+  }
+  let bestC=-1,bestN=0;
+  for(const c in counts){if(counts[c]>bestN){bestN=counts[c];bestC=+c;}}
+  return bestN>0?bestC:-1;
+}
+function processarAba(ws){
+  const matrix=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  if(!matrix.length) return [];
+  const hr=detectarLinhaCabecalho(matrix);
+  if(hr<0) return null;              // sem cabeçalho reconhecível
+  const headers=matrix[hr]||[];
+  const cOf=acharColunaOF(matrix,hr);
+  if(cOf<0) return [];               // aba sem OFs (ex.: aba de controle)
+  const cCli=acharCol(headers,['cliente','client']);
+  const cPap=acharCol(headers,['p.o','papel']);
+  const cQtd=acharCol(headers,['qtde pedido','quantidade pedido']);
+  const cLarg=acharCol(headers,['largura']);
+  const cComp=acharCol(headers,['comprimento']);
+  const cRef=acharCol(headers,['sliter','slitter','vincad','referenc','referência']);
+  const cOc=acharColExata(headers,['oc']);
+  const out=[],vistos={};
+  for(let r=hr+1;r<matrix.length;r++){
+    const row=matrix[r]||[];
+    if(!ehOF(row[cOf])) continue;
+    const of=String(row[cOf]).trim();
+    if(vistos[of]) continue; vistos[of]=1;
     let medida='';
-    if(colLarg&&colComp){const l=numFmt(r[colLarg]),c=numFmt(r[colComp]);if(l&&c)medida=l+' X '+c;}
-    return {
-      of:String(r[colOf]).trim().split('.')[0],
-      cliente:colCli?String(r[colCli]).trim():'',
-      papelao:colPap?String(r[colPap]).trim():'',
-      qtdePedido:colQtd?String(r[colQtd]).trim():'',
+    if(cLarg>=0&&cComp>=0){const l=numFmt(row[cLarg]),c=numFmt(row[cComp]);if(l&&c)medida=l+' X '+c;}
+    out.push({
+      of,
+      cliente:cCli>=0?String(row[cCli]||'').trim():'',
+      papelao:cPap>=0?String(row[cPap]||'').trim():'',
+      qtdePedido:cQtd>=0?String(row[cQtd]||'').trim():'',
       medida,
-      referencia:colRef?String(r[colRef]).trim():'',
-    };
-  });
+      referencia:cRef>=0?String(row[cRef]||'').trim():'',
+      oc:cOc>=0?String(row[cOc]||'').trim():''
+    });
+  }
+  return out;
+}
+
+function carregarWorkbook(arrayBuffer){
+  workbook=XLSX.read(arrayBuffer,{type:'array',cellDates:false});
+  const abas=workbook.SheetNames;
+  const sel=document.getElementById('selAba');
+  sel.innerHTML='';
+  abas.forEach(a=>{const o=document.createElement('option');o.value=o.textContent=a;sel.appendChild(o);});
+  document.getElementById('cardAba').style.display='block';
+  let ok=false;
+  for(const aba of abas){const r=processarAba(workbook.Sheets[aba]);if(r&&r.length>0){sel.value=aba;popularOrdens(r,aba);ok=true;break;}}
+  if(!ok){document.getElementById('msgXlsx').textContent='Selecione a aba abaixo.';document.getElementById('msgXlsx').style.display='block';}
+  return ok;
 }
 
 document.getElementById('fileXlsx').addEventListener('change', function(e) {
   const file=e.target.files[0]; if(!file) return;
   const reader=new FileReader();
   reader.onload=function(ev){
-    try {
-      workbook=XLSX.read(ev.target.result,{type:'array',cellDates:false});
-      const abas=workbook.SheetNames;
-      const sel=document.getElementById('selAba');
-      sel.innerHTML='';
-      abas.forEach(a=>{const o=document.createElement('option');o.value=o.textContent=a;sel.appendChild(o);});
-      document.getElementById('cardAba').style.display='block';
-      let ok=false;
-      for(const aba of abas){const r=processarAba(workbook.Sheets[aba]);if(r&&r.length>0){sel.value=aba;popularOrdens(r,aba);ok=true;break;}}
-      if(!ok){document.getElementById('msgXlsx').textContent='Selecione a aba abaixo.';document.getElementById('msgXlsx').style.display='block';}
-    } catch(err){alert('Erro: '+err.message);}
+    try { carregarWorkbook(ev.target.result); }
+    catch(err){ alert('Erro: '+err.message); }
   };
   reader.readAsArrayBuffer(file);
 });
+
+function mostrarManual(){
+  document.getElementById('cardArquivo').style.display='block';
+}
+
+// Modo operador: busca a programação publicada por você no GitHub (programacao-hoje.xlsx).
+// Cache-busting (?t=) + no-store para não pegar versão em cache do GitHub Pages / service worker.
+async function autoCarregar(){
+  const cardAuto=document.getElementById('cardAuto');
+  const cardArquivo=document.getElementById('cardArquivo');
+  const status=document.getElementById('autoStatus');
+  const link=document.getElementById('linkManual');
+  cardAuto.style.display='block';
+  link.style.display='none';
+  status.style.color='#1a56a0';
+  status.textContent='⏳ Buscando a programação do dia...';
+  try{
+    const resp=await fetch('./programacao-hoje.xlsx?t='+Date.now(),{cache:'no-store'});
+    if(!resp.ok) throw new Error('sem arquivo');
+    const buf=await resp.arrayBuffer();
+    const ok=carregarWorkbook(buf);
+    if(!ok) throw new Error('sem OFs');
+    cardArquivo.style.display='none';
+    let quando='';
+    const lm=resp.headers.get('last-modified');
+    if(lm){const d=new Date(lm);if(!isNaN(d.getTime()))quando=' · atualizada '+d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});}
+    status.style.color='#2e7d32';
+    status.textContent='✓ Programação do dia carregada'+quando;
+    link.style.display='inline-block';
+  }catch(err){
+    cardAuto.style.display='none';
+    cardArquivo.style.display='block';
+    const m=document.getElementById('msgXlsx');
+    m.textContent='Nenhuma programação publicada — carregue o Excel manualmente.';
+    m.style.color='#c62828';
+    m.style.display='block';
+  }
+}
+autoCarregar();
 
 function carregarAba(){
   const aba=document.getElementById('selAba').value;
