@@ -1,10 +1,10 @@
-const CACHE_NAME = 'prime-etiquetas-v1';
+const CACHE_NAME = 'prime-etiquetas-v2';
 const ASSETS = [
-  '/etiquetas-Prime/',
-  '/etiquetas-Prime/index.html',
-  '/etiquetas-Prime/manifest.json',
-  '/etiquetas-Prime/icon-192.png',
-  '/etiquetas-Prime/icon-512.png',
+  '/Etiquetas-Prime/',
+  '/Etiquetas-Prime/index.html',
+  '/Etiquetas-Prime/manifest.json',
+  '/Etiquetas-Prime/icon-192.png',
+  '/Etiquetas-Prime/icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 ];
@@ -24,6 +24,11 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // A programação do dia nunca é cacheada: sempre busca na rede para não servir versão velha.
+  if (e.request.url.includes('programacao-hoje')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
