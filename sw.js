@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prime-etiquetas-v2';
+const CACHE_NAME = 'prime-etiquetas-v3';
 const ASSETS = [
   '/Etiquetas-Prime/',
   '/Etiquetas-Prime/index.html',
@@ -24,11 +24,32 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // A programação do dia nunca é cacheada: sempre busca na rede para não servir versão velha.
+  const url = new URL(e.request.url);
+
+  // 1) A programação do dia NUNCA é cacheada: sempre rede (não servir versão velha).
   if (e.request.url.includes('programacao-hoje')) {
     e.respondWith(fetch(e.request));
     return;
   }
+
+  // 2) index.html / navegação: REDE PRIMEIRO (app sempre atualizado),
+  //    cache só como reserva quando estiver offline.
+  if (e.request.mode === 'navigate' ||
+      url.pathname.endsWith('/index.html') ||
+      url.pathname.endsWith('/Etiquetas-Prime/')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(resp => {
+          const copy = resp.clone();
+          caches.open(CACHE_NAME).then(c => c.put('/Etiquetas-Prime/index.html', copy));
+          return resp;
+        })
+        .catch(() => caches.match('/Etiquetas-Prime/index.html'))
+    );
+    return;
+  }
+
+  // 3) Demais arquivos (bibliotecas, ícones, manifest): cache primeiro.
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
