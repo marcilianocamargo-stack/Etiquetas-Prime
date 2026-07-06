@@ -319,28 +319,34 @@ function gerarPDF(dados) {
 
   const BLUE=[14,114,188];
 
-  // Seção CLIENTE (fundo azul)
+  // Seção CLIENTE (fundo azul) - nome do cliente em destaque, sem rótulo "CLIENTE"
   doc.setFillColor(...BLUE);
-  doc.rect(left, y, W, 20, 'F');
+  doc.rect(left, y, W, 24, 'F');
   doc.setTextColor(255,255,255);
-  doc.setFont('helvetica','bold'); doc.setFontSize(9);
-  doc.text('CLIENTE', left+3, y+5);
-  // Nome do cliente com fonte adaptável
-  let szCli=22;
+  doc.setFont('helvetica','bold');
+  let szCli=36;
   doc.setFontSize(szCli);
-  while(doc.getTextWidth(dados.cliente) > W-6 && szCli > 11) { szCli--; doc.setFontSize(szCli); }
-  doc.text(dados.cliente, left+3, y+16);
-  y += 24;
+  while(doc.getTextWidth(dados.cliente) > W-6 && szCli > 14) { szCli--; doc.setFontSize(szCli); }
+  doc.text(dados.cliente, left+3, y+17);
+  y += 28;
 
   // Seção IDENTIFICAÇÃO DO PRODUTO (fundo azul)
   doc.setFillColor(...BLUE);
-  doc.rect(left, y, W, 16, 'F');
+  doc.rect(left, y, W, 26, 'F');
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold'); doc.setFontSize(9);
   doc.text('IDENTIFICAÇÃO DO PRODUTO', left+3, y+5);
-  doc.setFont('helvetica','bold'); doc.setFontSize(16);
-  doc.text('PAPELÃO:  ' + (dados.papelao||''), left+3, y+13);
-  y += 20;
+  doc.setFont('helvetica','bold'); doc.setFontSize(20);
+  const lblPapelao = 'PAPELÃO: ';
+  doc.text(lblPapelao, left+3, y+22);
+  const lblPapelaoW = doc.getTextWidth(lblPapelao);
+  const xValPapelao = left+3+lblPapelaoW;
+  let szPap=36;
+  doc.setFont('helvetica','bold'); doc.setFontSize(szPap);
+  const maxWPap = (W-6)-lblPapelaoW;
+  while(doc.getTextWidth(String(dados.papelao||'')) > maxWPap && szPap > 14) { szPap--; doc.setFontSize(szPap); }
+  doc.text(String(dados.papelao||''), xValPapelao, y+22);
+  y += 30;
 
   // Grade com bordas
   doc.setTextColor(0,0,0);
@@ -352,7 +358,11 @@ function gerarPDF(dados) {
     doc.setFont('helvetica','bold'); doc.setFontSize(8);
     doc.text(label, x+2, cy+5);
     if(valor) {
-      doc.setFont('helvetica','bold'); doc.setFontSize(szVal||15);
+      doc.setFont('helvetica','bold');
+      let size = szVal||15;
+      doc.setFontSize(size);
+      const maxW = w-4;
+      while(doc.getTextWidth(String(valor)) > maxW && size > 8) { size--; doc.setFontSize(size); }
       doc.text(String(valor), x+2, cy+h-3);
     }
   }
@@ -361,23 +371,23 @@ function gerarPDF(dados) {
   const dataFab = hoje.toLocaleDateString('pt-BR');
 
   // Linha 1: OF | OC
-  celula(left,    y, HC, 14, 'ORDEM DE FABRICAÇÃO (OF)', dados.of, 15);
-  celula(left+HC, y, HC, 14, 'ORDEM DE COMPRA (OC)', dados.oc||'', 15);
-  y += 14;
+  celula(left,    y, HC, 24, 'ORDEM DE FABRICAÇÃO (OF)', dados.of, 36);
+  celula(left+HC, y, HC, 24, 'ORDEM DE COMPRA (OC)', dados.oc||'', 36);
+  y += 24;
 
   // Linha 2: MEDIDAS | REFERÊNCIA
-  celula(left,    y, HC, 14, 'MEDIDAS (LARGURA X COMPRIMENTO)', dados.medida, 14);
-  celula(left+HC, y, HC, 14, 'REFERÊNCIA', dados.referencia, 14);
-  y += 14;
+  celula(left,    y, HC, 24, 'MEDIDAS (LARGURA X COMPRIMENTO)', dados.medida, 36);
+  celula(left+HC, y, HC, 24, 'REFERÊNCIA', dados.referencia, 26);
+  y += 24;
 
   // Linha 3: DATA DE FABRICAÇÃO | QUANT. PEDIDO
-  celula(left,    y, HC, 16, 'DATA DE FABRICAÇÃO', dataFab, 16);
-  celula(left+HC, y, HC, 16, 'QUANT. PEDIDO', dados.qtdePedido, 16);
-  y += 16;
+  celula(left,    y, HC, 24, 'DATA DE FABRICAÇÃO', dataFab, 24);
+  celula(left+HC, y, HC, 24, 'QUANT. PEDIDO', dados.qtdePedido, 36);
+  y += 24;
 
   // Linha 4: PALETE Nº | Quant. PALETE
-  celula(left,    y, HC, 22, 'PALETE Nº', dados.numPalete||'', 20);
-  celula(left+HC, y, HC, 22, 'Quant. PALETE', dados.qtdePalete||'', 20);
+  celula(left,    y, HC, 24, 'PALETE Nº', dados.numPalete||'', 36);
+  celula(left+HC, y, HC, 24, 'Quant. PALETE', dados.qtdePalete||'', 36);
 
   return doc;
 }
