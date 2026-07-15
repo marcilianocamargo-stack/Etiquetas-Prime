@@ -64,9 +64,9 @@
   </div>
 
   <div class="card" id="cardOf" style="display:none">
-    <div class="step">2 · Selecionar OF</div>
+    <div class="step">2 · Selecionar OP</div>
     <div class="busca-row">
-      <input type="text" id="buscaOf" placeholder="Digite o nº da OF..." oninput="filtrarOf()" inputmode="numeric">
+      <input type="text" id="buscaOf" placeholder="Digite o nº da OP..." oninput="filtrarOf()" inputmode="numeric">
       <button onclick="limparBusca()">✕</button>
     </div>
     <div class="msg err" id="alertaOf"></div>
@@ -117,7 +117,7 @@ function acharColExata(headers, keys){
   return -1;
 }
 function detectarLinhaCabecalho(matrix){
-  const kws=['cliente','of','p.o','qtde','pedido','largura','comprimento','sliter','vincad','data'];
+  const kws=['cliente','of','op','p.o','qtde','pedido','largura','comprimento','sliter','vincad','data'];
   let best=-1,bestHits=1,lim=Math.min(matrix.length,20);
   for(let r=0;r<lim;r++){
     const row=matrix[r]||[];let hits=0;
@@ -125,6 +125,18 @@ function detectarLinhaCabecalho(matrix){
     if(hits>bestHits){bestHits=hits;best=r;}
   }
   return best;
+}
+// OF central da programação (nova numeração única por lote, exigência FSC/NF-e) —
+// fica na célula do título, acima do cabeçalho, no formato "OF: 000123".
+function extrairOfCentral(matrix, hr){
+  for(let r=0;r<hr;r++){
+    const row=matrix[r]||[];
+    for(const cell of row){
+      const m=/OF\s*:\s*0*(\d+)/i.exec(String(cell==null?'':cell));
+      if(m) return m[1];
+    }
+  }
+  return '';
 }
 // A coluna da OF é achada pelo CONTEÚDO (a coluna com mais números de OF), não pelo rótulo
 // do cabeçalho — porque na prática o rótulo varia: às vezes a OF fica na coluna "Data Prod".
@@ -171,6 +183,7 @@ function processarAba(ws){
       oc:cOc>=0?String(row[cOc]||'').trim():''
     });
   }
+  out.ofCentral=extrairOfCentral(matrix,hr);
   return out;
 }
 
@@ -187,7 +200,7 @@ function carregarWorkbook(arrayBuffer){
 
   const sel=document.getElementById('selAba');
   sel.innerHTML='<option value="">— toque para escolher o pedido —</option>';
-  pedidos.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a+' · '+pedidosData[a].length+' OF(s)';sel.appendChild(o);});
+  pedidos.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a+' · '+pedidosData[a].length+' OP(s)';sel.appendChild(o);});
   document.getElementById('cardAba').style.display='block';
 
   // Se o arquivo tem só 1 pedido, já carrega automaticamente
@@ -238,7 +251,7 @@ function carregarAba(){
 function popularOrdens(lista,aba){
   ordens=lista;
   preencherSelect(ordens);
-  document.getElementById('msgXlsx').textContent='✓ '+ordens.length+' OF(s) — pedido: '+aba;
+  document.getElementById('msgXlsx').textContent='✓ '+ordens.length+' OP(s) — pedido: '+aba;
   document.getElementById('msgXlsx').style.display='block';
   document.getElementById('cardOf').style.display='block';
   document.getElementById('cardPalete').style.display='block';
@@ -251,7 +264,7 @@ function preencherSelect(lista){
   const sel=document.getElementById('selOf');
   const valorAtual=sel.value;
   sel.innerHTML='';
-  lista.forEach(o=>{const opt=document.createElement('option');opt.value=o.of;opt.textContent='OF '+o.of+(o.cliente?' · '+o.cliente:'');sel.appendChild(opt);});
+  lista.forEach(o=>{const opt=document.createElement('option');opt.value=o.of;opt.textContent='OP '+o.of+(o.cliente?' · '+o.cliente:'');sel.appendChild(opt);});
   // tentar manter seleção
   if(valorAtual && lista.find(o=>o.of===valorAtual)) sel.value=valorAtual;
   atualizarPreview();
@@ -278,7 +291,7 @@ function filtrarOf(){
 
   // Número que não existe em nenhuma OF deste pedido → alerta
   if(filtradas.length===0){
-    alerta.textContent='⚠ Nenhuma OF com esse número neste pedido. Confira o número.';
+    alerta.textContent='⚠ Nenhuma OP com esse número neste pedido. Confira o número.';
     alerta.style.display='block';
     document.getElementById('previewDados').style.display='none';
   }else{
@@ -373,8 +386,12 @@ function gerarPDF(dados) {
   const hoje = new Date();
   const dataFab = hoje.toLocaleDateString('pt-BR');
 
-  // Linha 1: OF | OC
-  celula(left,    y, HC, 24, 'ORDEM DE FABRICAÇÃO (OF)', dados.of, 36);
+  // Linha 0: OF central da programação (nº único por lote — Nota Fiscal/FSC)
+  celula(left, y, W, 24, 'ORDEM DE FABRICAÇÃO (OF)', dados.ofCentral||'—', 36);
+  y += 24;
+
+  // Linha 1: OP | OC
+  celula(left,    y, HC, 24, 'ORDEM DE PRODUÇÃO (OP)', dados.of, 36);
   celula(left+HC, y, HC, 24, 'ORDEM DE COMPRA (OC)', dados.oc||'', 36);
   y += 24;
 
@@ -401,7 +418,7 @@ function getDados(){
   const numRaw=document.getElementById('numPalete').value;
   const qtdePalete=document.getElementById('qtdePalete').value;
   const numPalete=numRaw?String(parseInt(numRaw)).padStart(2,'0'):'';
-  return {...o, qtdePalete, numPalete, numRaw:parseInt(numRaw)||0};
+  return {...o, qtdePalete, numPalete, numRaw:parseInt(numRaw)||0, ofCentral:ordens.ofCentral||''};
 }
 
 function avancarPalete(numRaw){
@@ -411,7 +428,7 @@ function avancarPalete(numRaw){
 
 function gerarEImprimir(){
   const dados=getDados();
-  if(!dados){mostrarMsg('Selecione uma OF antes de imprimir.',false);return;}
+  if(!dados){mostrarMsg('Selecione uma OP antes de imprimir.',false);return;}
   const vazios=[];
   if(!dados.numPalete) vazios.push('Nº do Palete');
   if(!dados.qtdePalete) vazios.push('Quantidade de Chapas');
@@ -425,19 +442,19 @@ function gerarEImprimir(){
   if(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([blob],fileName,{type:'application/pdf'})]})){
     const file=new File([blob],fileName,{type:'application/pdf'});
     navigator.share({files:[file],title:fileName})
-      .then(()=>mostrarMsg('✓ OF '+dados.of+' · Palete '+dados.numPalete+' — compartilhado para impressão',true))
+      .then(()=>mostrarMsg('✓ OP '+dados.of+' · Palete '+dados.numPalete+' — compartilhado para impressão',true))
       .catch(()=>{});
   } else {
     const url=URL.createObjectURL(blob);
     window.open(url,'_blank');
-    mostrarMsg('✓ OF '+dados.of+' · Palete '+dados.numPalete+' — PDF aberto, toque em Imprimir',true);
+    mostrarMsg('✓ OP '+dados.of+' · Palete '+dados.numPalete+' — PDF aberto, toque em Imprimir',true);
   }
   avancarPalete(dados.numRaw);
 }
 
 function gerarEBaixar(){
   const dados=getDados();
-  if(!dados){mostrarMsg('Selecione uma OF antes de baixar.',false);return;}
+  if(!dados){mostrarMsg('Selecione uma OP antes de baixar.',false);return;}
   const vazios=[];
   if(!dados.numPalete) vazios.push('Nº do Palete');
   if(!dados.qtdePalete) vazios.push('Quantidade de Chapas');
@@ -447,7 +464,7 @@ function gerarEBaixar(){
   }
   const doc=gerarPDF(dados);
   doc.save('etiqueta_OF'+dados.of+'_palete'+dados.numPalete+'.pdf');
-  mostrarMsg('✓ PDF baixado — OF '+dados.of+' · Palete '+dados.numPalete,true);
+  mostrarMsg('✓ PDF baixado — OP '+dados.of+' · Palete '+dados.numPalete,true);
   avancarPalete(dados.numRaw);
 }
 
